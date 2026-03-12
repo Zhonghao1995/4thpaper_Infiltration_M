@@ -30,15 +30,18 @@ def plot_results(
     results_ga: dict,
     dt: float,
     soil: SoilParameters,
-    save_path: str = "demo_output.png"
+    save_path: str = "demo_output.png",
+    results_richards: dict = None
 ) -> None:
     """Create 4-panel comparison: rainfall, infiltration, runoff, soil moisture."""
     setup_plot_style()
     time = results_horton['time']
 
-    fig, axes = plt.subplots(4, 1, figsize=(10, 12), sharex=True)
-    fig.suptitle('Rainfall-Infiltration-Runoff Model: Horton vs Green-Ampt',
-                 fontsize=14, fontweight='bold', y=0.98)
+    fig, axes = plt.subplots(3, 1, figsize=(10, 10), sharex=True)
+    title = 'Rainfall-Infiltration-Runoff Model: Horton vs Green-Ampt'
+    if results_richards is not None:
+        title += ' vs Richards'
+    fig.suptitle(title, fontsize=14, fontweight='bold', y=0.98)
 
     # (a) Rainfall hyetograph
     ax1 = axes[0]
@@ -55,30 +58,26 @@ def plot_results(
     ax2 = axes[1]
     ax2.plot(time, results_horton['infil_rate'], 'r-o', markersize=2.5, linewidth=1.2, label='Horton I(t)')
     ax2.plot(time, results_ga['infil_rate'], 'b-s', markersize=2.5, linewidth=1.2, label='Green-Ampt I(t)')
+    if results_richards is not None:
+        ax2.plot(time, results_richards['infil_rate'], 'g-^', markersize=2.5, linewidth=1.2, label='Richards I(t)')
     ax2.step(time - dt, results_horton['precip_intensity'], where='post',
              color='gray', linestyle='--', linewidth=0.8, alpha=0.6, label='Rainfall intensity')
     ax2.set_ylabel('Infiltration Rate\n[mm/h]')
     ax2.set_title('(b) Infiltration Rate Comparison', fontsize=12, loc='left')
     ax2.legend(loc='upper right', frameon=False)
 
-    # (c) Runoff hydrograph
+    # (c) Soil moisture evolution
     ax3 = axes[2]
-    ax3.plot(time, results_horton['runoff_intensity'], 'r-o', markersize=2.5, linewidth=1.2, label='Horton Q(t)')
-    ax3.plot(time, results_ga['runoff_intensity'], 'b-s', markersize=2.5, linewidth=1.2, label='Green-Ampt Q(t)')
-    ax3.set_ylabel('Runoff Intensity\n[mm/h]')
-    ax3.set_title('(c) Runoff Hydrograph', fontsize=12, loc='left')
-    ax3.legend(loc='upper right', frameon=False)
-
-    # (d) Soil moisture evolution
-    ax4 = axes[3]
-    ax4.plot(time, results_horton['theta'], 'r-o', markersize=2.5, linewidth=1.2, label=r'Horton $\theta$(t)')
-    ax4.plot(time, results_ga['theta'], 'b-s', markersize=2.5, linewidth=1.2, label=r'Green-Ampt $\theta$(t)')
-    ax4.axhline(y=soil.theta_s, color='black', linestyle=':', linewidth=1, label=r'$\theta_s$ = ' + f'{soil.theta_s}')
-    ax4.axhline(y=soil.theta_0, color='gray', linestyle=':', linewidth=1, label=r'$\theta_0$ = ' + f'{soil.theta_0}')
-    ax4.set_ylabel(r'Soil Moisture $\theta$' + '\n' + r'[m$^3$/m$^3$]')
-    ax4.set_xlabel('Time [h]')
-    ax4.set_title(r'(d) Soil Moisture Evolution', fontsize=12, loc='left')
-    ax4.legend(loc='lower right', frameon=False)
+    ax3.plot(time, results_horton['theta'], 'r-o', markersize=2.5, linewidth=1.2, label=r'Horton $\theta$(t)')
+    ax3.plot(time, results_ga['theta'], 'b-s', markersize=2.5, linewidth=1.2, label=r'Green-Ampt $\theta$(t)')
+    if results_richards is not None:
+        ax3.plot(time, results_richards['theta'], 'g-^', markersize=2.5, linewidth=1.2, label=r'Richards Avg $\theta$(t)')
+    ax3.axhline(y=soil.theta_s, color='black', linestyle=':', linewidth=1, label=r'$\theta_s$ = ' + f'{soil.theta_s}')
+    ax3.axhline(y=soil.theta_0, color='gray', linestyle=':', linewidth=1, label=r'$\theta_0$ = ' + f'{soil.theta_0}')
+    ax3.set_ylabel(r'Soil Moisture $\theta$' + '\n' + r'[m$^3$/m$^3$]')
+    ax3.set_xlabel('Time [h]')
+    ax3.set_title(r'(c) Soil Moisture Evolution', fontsize=12, loc='left')
+    ax3.legend(loc='lower right', frameon=False)
 
     plt.tight_layout()
     plt.savefig(save_path, dpi=300, bbox_inches='tight')
