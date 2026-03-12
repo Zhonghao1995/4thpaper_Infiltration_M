@@ -97,9 +97,8 @@ def _picard_step(h_old, P_rate, dt, nz, dz,
         K_n = _vg_K(h, alpha, n_vg, m, l_param, K_s)
         C_n = np.maximum(_vg_C(h, alpha, n_vg, m, theta_r, theta_s), 1e-10)
 
-        # Interface K (harmonic mean between adjacent nodes)
-        K_sum = K_n[:-1] + K_n[1:]
-        K_half = np.where(K_sum > 0, 2.0 * K_n[:-1] * K_n[1:] / K_sum, 0.0)
+        # Interface K (arithmetic mean is more stable for infiltration wetting fronts)
+        K_half = 0.5 * (K_n[:-1] + K_n[1:])
 
         # Tridiagonal coefficients
         a_vec = np.zeros(nz)
@@ -137,7 +136,10 @@ def _picard_step(h_old, P_rate, dt, nz, dz,
         rhs[-1]   = C_n[-1] * dz / dt * h_old[-1] + kl_bot - K_bot
 
         # Solve
-        h = _thomas(a_vec, d_vec, c_vec, rhs)
+        h_new_picard = _thomas(a_vec, d_vec, c_vec, rhs)
+
+        # Relaxation to prevent oscillatory divergence between wet/dry states
+        h = 0.8 * h_new_picard + 0.2 * h_prev
 
         # Convergence check
         if np.max(np.abs(h - h_prev)) < tol:
@@ -221,25 +223,21 @@ def solve_richards(precip, dt, soil, params):
         # --- Compute Darcy Flux at the surface (Infiltration Rate) ---
         # Evaluate unsaturated hydraulic conductivity at the top interface
         K_top = _vg_K(h[0:2], alpha, n_vg, m, l_param, K_s)
-        kr0 = 2.0 * K_top[0] * K_top[1] / (K_top[0] + K_top[1]) if (K_top[0] + K_top[1]) > 0 else 0.0
+        kr0 = 0.5 * (K_top[0] + K_top[1]) if len(K_top) > 1 else K_top[0]
 
         if ponding:
             # Under ponding (h[0] = 0), infiltration is limited by soil capacity
             # Darcy flux: q = -K * (dh/dz - 1)
             # Inward infiltration rate I = -q
             I_rate = kr0 * ((h[0] - h[1]) / dz + 1.0)
-            
-            # Since we assume zero pond depth tracking, if rainfall > infiltration capacity, 
-            # the excess is instantly runoff. However, if rainfall < capacity but we remained 
-            # in ponding state (numerical overshoot), we limit I_rate to max capacity or P_rate.
-            # To be strictly physical without tracking pond head, I_rate cannot exceed what the
-            # soil can physically suck in, which is exactly the Darcy flux computed above.
             I_rate = max(I_rate, 0.0)
 
-            # Important: if the computed Darcy flux > P_rate, and there is no ponded water 
-            # available from previous steps (since we don't track it), the actual infiltration 
-            # cannot exceed the rainfall rate. This prevents the "spikes" when rainfall drops.
-            I_rate = min(I_rate, P_rate)
+            # If the solver reached ponding but the actual inward Darcy flux is HIGHER
+            # than the rainfall rate, it means the surface can actually absorb all the rain
+            # (numerical overshoot occurred). In reality, there is no standing water to 
+            # supply this excess rate. So infiltration is capped at the rainfall rate.
+            if I_rate > P_rate:
+                I_rate = P_rate
 
         else:
             # If not ponded, all rainfall infiltrates exactly (Neumann boundary was met)
