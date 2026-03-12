@@ -83,3 +83,66 @@ def plot_results(
     plt.savefig(save_path, dpi=300, bbox_inches='tight')
     plt.close()
     print(f"\nPlot saved to: {save_path}")
+
+def plot_moisture_profile(
+    results_ga: dict,
+    results_richards: dict,
+    soil: SoilParameters,
+    dt: float,
+    target_time: float,
+    save_path: str = "moisture_profile.png"
+) -> None:
+    """Create a depth vs moisture profile plot (z vs theta) matching the professor's diagram."""
+    setup_plot_style()
+    
+    time_arr = results_richards['time']
+    # Find the index closest to target time
+    idx = np.argmin(np.abs(time_arr - target_time))
+    actual_time = time_arr[idx]
+    
+    fig, ax = plt.subplots(figsize=(7, 6))
+    ax.set_title(f'Soil Moisture Profile at t = {actual_time:.1f} h', fontsize=14, fontweight='bold', pad=15)
+    
+    # Richards Profile (Continuous Curve)
+    theta_z = results_richards['theta_z'][idx, :]
+    z_nodes = results_richards['z_nodes']
+    
+    # We plot Z on the Y-axis inverted (0 at top, positive downwards)
+    # and Theta on the X-axis
+    ax.plot(theta_z, z_nodes, 'g-', linewidth=2.5, label='Richards Eqn')
+    
+    # Green-Ampt Profile (Step Function)
+    # Z_f = F / Delta_theta
+    F_ga = results_ga['F_cumulative'][idx]
+    delta_theta = soil.theta_s - soil.theta_0
+    Z_f = F_ga / delta_theta if delta_theta > 0 else 0.0
+    
+    # Create the rectangular shape for Green-Ampt
+    ga_theta = [soil.theta_s, soil.theta_s, soil.theta_0, soil.theta_0]
+    ga_z = [0.0, Z_f, Z_f, soil.D]
+    ax.plot(ga_theta, ga_z, 'b--', linewidth=2.0, label='Green-Ampt (Step)')
+    
+    # Horton doesn't have a physical profile, so we omit it or just mention it.
+    
+    # Formatting to match the professor's diagram
+    ax.set_ylim(soil.D, 0) # Invert Y axis
+    ax.set_xlim(0, soil.theta_s + 0.05)
+    
+    ax.set_ylabel('Depth $z$ [mm]', fontsize=12)
+    ax.set_xlabel(r'Soil Moisture $\theta$ [m$^3$/m$^3$]', fontsize=12)
+    
+    # Add vertical lines for theta_0 and theta_s
+    ax.axvline(x=soil.theta_0, color='gray', linestyle=':', label=r'Initial $\theta_0$')
+    ax.axvline(x=soil.theta_s, color='black', linestyle=':', label=r'Saturated $\theta_s$')
+    
+    # Fill under the curves to make it look like the diagram
+    ax.fill_betweenx(z_nodes, soil.theta_0, theta_z, where=(theta_z > soil.theta_0), 
+                     color='green', alpha=0.15, label='Infiltrated Water (Richards)')
+    
+    ax.legend(loc='lower right', frameon=True, facecolor='white', framealpha=0.9)
+    plt.grid(True, linestyle='--', alpha=0.5)
+    
+    plt.tight_layout()
+    plt.savefig(save_path, dpi=300, bbox_inches='tight')
+    plt.close()
+    print(f"Profile plot saved to: {save_path}")

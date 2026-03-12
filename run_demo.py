@@ -6,11 +6,13 @@ Usage:
 """
 
 import numpy as np
+from infiltration_model.core.parameters import (
+    SoilParameters, HortonParams, GreenAmptParams, RichardsParams
+)
 from infiltration_model.core import (
-    SoilParameters, HortonParams, GreenAmptParams, RichardsParams,
     simulate, verify_water_balance, verify_physical_constraints
 )
-from infiltration_model.visualization import plot_results
+from infiltration_model.visualization.plotting import plot_results, plot_moisture_profile
 
 
 def run_demo():
@@ -102,6 +104,9 @@ def run_demo():
     # Plot
     print("\nGenerating comparison plot...")
     plot_results(results_horton, results_ga, dt, soil, save_path="demo_output_uniform.png", results_richards=results_richards)
+
+    print("\nGenerating soil moisture profile diagram at t=2.0h...")
+    plot_moisture_profile(results_ga, results_richards, soil, dt, target_time=2.0, save_path="moisture_profile.png")
 
     print("\n" + "=" * 60)
     print("  DEMONSTRATION COMPLETE")

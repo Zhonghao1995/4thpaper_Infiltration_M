@@ -191,6 +191,8 @@ def solve_richards(precip, dt, soil, params):
     runoff_arr    = np.zeros(n_steps)
     sc_arr        = np.zeros(n_steps)
     F_cum_arr     = np.zeros(n_steps)
+    theta_z_arr   = np.zeros((n_steps, nz))
+    z_nodes       = np.arange(0.5 * dz, soil.D, dz)
 
     F_cum = 0.0
     t = 0.0
@@ -268,10 +270,12 @@ def solve_richards(precip, dt, soil, params):
         runoff_arr[step]  = Q_rate
         sc_arr[step]      = SC
         F_cum_arr[step]   = F_cum
+        theta_z_arr[step, :] = theta_new
 
     return {
         'time': time_arr, 'precip_intensity': precip_int,
         'theta': theta_arr, 'infil_rate': infil_rate,
         'infil_depth': infil_depth, 'runoff_intensity': runoff_arr,
         'storage_capacity': sc_arr, 'F_cumulative': F_cum_arr,
+        'theta_z': theta_z_arr, 'z_nodes': z_nodes
     }
